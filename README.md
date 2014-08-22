@@ -4,9 +4,10 @@ lightsec
 Python implementation of the protocol described in Naranjo et al. (2013).
 
 
-
 Protocol
 --------
+
+<img src="http://rawgithub.com/gomezgoiri/lightsec/master/docs/diagram.svg" alt="Protocol diagram" >
 
 1. At the time of sensor deployment, the latter receives a master secret _MS<sub>S</sub>_, which is secretly shared by the Base Station _BS_ and the sensor _S_ (see the end of this section for secret channels).
 1. Upon arrival, user _A_ sends her credentials (e.g. an authorization certificate) to BS so high-level access control can be performed, and the list of sensors she wants to communicate with (in the figure we only consider _S_). This step is run only at user arrival.
