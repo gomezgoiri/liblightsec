@@ -8,6 +8,19 @@ Python implementation of the protocol described in Naranjo et al. (2013).
 Protocol
 --------
 
+1. At the time of sensor deployment, the latter receives a master secret _MS<sub>S</sub>_, which is secretly shared by the Base Station _BS_ and the sensor _S_ (see the end of this section for secret channels).
+1. Upon arrival, user _A_ sends her credentials (e.g. an authorization certificate) to BS so high-level access control can be performed, and the list of sensors she wants to communicate with (in the figure we only consider _S_). This step is run only at user arrival.
+1. BS computes:
+ 1. a, random integer salt
+ 1. (init time, exp time), keying material validity interval
+ 1. _Kenc<sub>S,A</sub>_ , _Kauth<sub>S,A</sub>_ = KDF (_MS<sub>S</sub>_, {a, IDA &#124;&#124; init time &#124;&#124; exp time_})
+
+1. _BS_ sends the information generated in the previous step to _A_ under a secure channel (see the end of this section).
+1. _A_ encrypts her first message to _S_ with _Kenc<sub>S,A</sub>_ in counter mode (thus using a fresh counter _ctr_), attaches parameters _ID<sub>A</sub>_ , _a_, _init time_, _exp time_, _ctr_ in plain text and a MAC obtained with _Kauth<sub>S,A</sub>_.
+1. Upon reception of the message, _S_ obtains the key pair _Kenc<sub>S,A</sub>_, _Kauth<sub>S,A</sub>_ by feeding the Key Derivation Function with the attached parameters; _S_ can now decrypt the message. The reply is encrypted in counter mode with _Kenc<sub>S,A</sub>_ and _ctr + 1_ and authenticated with a MAC using _Kauth<sub>S,A</sub>_.
+1. Any subsequent message is encrypted and authenticated with the same key pair after increasing the counter by one.
+
+
 
 Notation
 --------
