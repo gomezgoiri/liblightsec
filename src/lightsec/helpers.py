@@ -5,7 +5,7 @@ Created on 26/08/2014
 '''
 
 from time import time
-from random import random
+from random import random, randint
 
 class BaseStationHelper(object):
     
@@ -78,3 +78,22 @@ class SensorHelper(object):
     def decrypt(self, id_user, enc_message):
         self.check_is_authorized( id_user )
         return self._cached_keys["cipher"].decrypt( enc_message )
+
+
+class UserHelper(object): # One instance per communication (with a sensor or a group of sensors)
+    
+    # We could check the validity of a key before getting an error from the sensor too.
+    # TODO Decide which option is better. 
+    
+    def __init__(self, sensor_id, kauth, kenc, cipher_class):
+        self._sensor_id = sensor_id # TODO, it's maybe not needed here
+        self._kauth = kauth
+        # stored as an argument because it must be sent to the sensor afterwards
+        self.initial_counter = randint(0,500)
+        self._cipher = cipher_class(self.initial_counter, kenc)
+    
+    def encrypt(self, message):
+        return self._cipher.encrypt( message )
+    
+    def decrypt(self, enc_message):
+        return self._cipher.decrypt( enc_message )
