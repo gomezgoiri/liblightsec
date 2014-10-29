@@ -34,8 +34,8 @@ class KeyDerivationFunctionFactory(object):
         self.digestmod = digestmod
         self.outputSizeBits = outputSizeBits
     
-    def create_function(self, secret):
-        return self.kdf_class(self.digestmod, secret, self.outputSizeBits)
+    def create_function(self, secret, salt):
+        return self.kdf_class(self.digestmod, secret, self.outputSizeBits, salt)
 
 
 class Nist800(AbstractKeyDerivationFunction):
@@ -43,11 +43,11 @@ class Nist800(AbstractKeyDerivationFunction):
     Class representing the NIST 800-108 key derivation function in counter mode.
     """
     
-    def __init__(self, digestmod, secret, outputSizeBits):
+    def __init__(self, digestmod, secret, outputSizeBits, salt):
         super(Nist800, self).__init__(outputSizeBits)
         from kdf.lcrypto import NIST
         self.kdf = NIST()
-        self.kdf.set_hmac(digestmod, secret)
+        self.kdf.set_hmac(digestmod, secret, salt)
     
     def derive_key(self, fixedInput):
         return str( self.kdf.derive_key(self.outputSizeBits, fixedInput) )
