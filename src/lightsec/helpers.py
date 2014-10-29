@@ -36,11 +36,12 @@ class BaseStationHelper(object):
 
 class SensorHelper(object):
     
-    def __init__(self, kdf_factory, cipher_class, secret_auth, secret_enc):
+    def __init__(self, kdf_factory, secret_auth, secret_enc, hmac_class, cipher_class):
         self.kdf_factory = kdf_factory
-        self.cipher_class = cipher_class
         self._secret_auth = secret_auth
         self._secret_enc = secret_enc
+        self._hmac_class = hmac_class
+        self.cipher_class = cipher_class
         self._cached_keys = {}
     
     def _check_expiration_time(self, exp_time):
@@ -73,11 +74,55 @@ class SensorHelper(object):
     
     def encrypt(self, id_user, message):
         self.check_is_authorized( id_user )
-        return self._cached_keys["cipher"].encrypt( message )
+        return self._cached_keys[id_user]["cipher"].encrypt( message )
     
     def decrypt(self, id_user, enc_message):
         self.check_is_authorized( id_user )
-        return self._cached_keys["cipher"].decrypt( enc_message )
+        return self._cached_keys[id_user]["cipher"].decrypt( enc_message )
+    
+    def _first_communication_mac(self, key, message, user_id, a, init_time, exp_time, ctr):
+        hmac = self._hmac_class( key )
+        hmac.update( message )
+        hmac.update( user_id )
+        hmac.update( a )
+        hmac.update( str(init_time) )
+        hmac.update( str(exp_time) )
+        hmac.update( str(ctr) )
+        return hmac.digest()
+    
+    def _normal_communication_mac(self, key, message):
+        hmac = self._hmac_class( key )
+        hmac.update( message )
+        return hmac.digest()
+    
+    def mac(self, message, id_user):
+        self.__assert_previous_create_keys_call( id_user )
+        key = self._cached_keys[id_user]["kauth"]
+        return self._normal_communication_mac( key, message )
+    
+    def __assert_previous_create_keys_call(self, id_user):
+        # the must have been called before!!!
+        # the temporal coupling I was trying to avoid doest not work!
+        assert id_user in self._cached_keys and \
+                "kauth" in self._cached_keys[id_user] and \
+                "exp_time" in self._cached_keys[id_user], \
+                "Note that create_keys must be called first."
+        
+    
+    def msg_is_authentic(self, message, mac_to_verify, id_user=None, a=None, init_time=None, ctr=None):
+        self.__assert_previous_create_keys_call( id_user )
+        key = self._cached_keys[id_user]["kauth"]
+        exp_time = self._cached_keys[id_user]["exp_time"]
+        
+        if not id_user and not a and not init_time and not exp_time and not ctr:
+            mac = self._normal_communication_mac( key, message )
+        else:
+            assert id_user is not None
+            assert a is not None
+            assert init_time is not None
+            assert ctr is not None
+            mac = self._first_communication_mac( key, message, id_user, a, init_time, exp_time, ctr )
+        return mac_to_verify == mac
 
 
 class UserHelper(object): # One instance per communication (with a sensor or a group of sensors)
@@ -85,15 +130,40 @@ class UserHelper(object): # One instance per communication (with a sensor or a g
     # We could check the validity of a key before getting an error from the sensor too.
     # TODO Decide which option is better. 
     
-    def __init__(self, sensor_id, kauth, kenc, cipher_class):
+    def __init__(self, sensor_id, kenc, cipher_class, kauth, hmac_class, id_user, a, init_time, exp_time):
         self._sensor_id = sensor_id # TODO, it's maybe not needed here
-        self._kauth = kauth
         # stored as an argument because it must be sent to the sensor afterwards
-        self.initial_counter = randint(0,500)
-        self._cipher = cipher_class(self.initial_counter, kenc)
+        ctr = randint(0,500)
+        self._cipher = cipher_class(ctr, kenc)
+        self._hmac_class = hmac_class
+        # data only used for the first communication mac:
+        self._kauth = kauth
+        self._id_user = id_user
+        self._a = a
+        self._init_time = init_time
+        self._exp_time = exp_time
+        self.initial_counter = ctr # shared afterwards
+        # to discriminate the first communication and the rest
+        self._first_mac = False
     
     def encrypt(self, message):
         return self._cipher.encrypt( message )
     
     def decrypt(self, enc_message):
         return self._cipher.decrypt( enc_message )
+    
+    def mac(self, message):
+        hmac = self._hmac_class( self._kauth )
+        hmac.update( message )
+        if not self._first_mac:
+            hmac.update( self._id_user )
+            hmac.update( self._a )
+            hmac.update( str(self._init_time) )
+            hmac.update( str(self._exp_time) )
+            hmac.update( str(self.initial_counter) )
+            self._first_mac = True
+        return hmac.digest()
+    
+    def msg_is_authentic(self, message, mac_to_verify):
+        mac = self.mac( message )
+        return mac_to_verify==mac
