@@ -45,9 +45,9 @@ class Nist800(AbstractKeyDerivationFunction):
     
     def __init__(self, digestmod, secret, outputSizeBits):
         super(Nist800, self).__init__(outputSizeBits)
-        from kdf.nist import NIST
+        from kdf.lcrypto import NIST
         self.kdf = NIST()
         self.kdf.set_hmac(digestmod, secret)
     
     def derive_key(self, fixedInput):
-        return self.kdf.derive_key(self.outputSizeBits, fixedInput)
+        return str( self.kdf.derive_key(self.outputSizeBits, fixedInput) )
