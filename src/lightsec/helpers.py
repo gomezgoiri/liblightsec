@@ -103,21 +103,21 @@ class SensorHelper(object):
     def __assert_previous_create_keys_call(self, id_user):
         # the must have been called before!!!
         # the temporal coupling I was trying to avoid doest not work!
-        assert id_user in self._cached_keys and \
+        assert id_user is not None and \
+                id_user in self._cached_keys and \
                 "kauth" in self._cached_keys[id_user] and \
                 "exp_time" in self._cached_keys[id_user], \
                 "Note that create_keys must be called first."
         
     
-    def msg_is_authentic(self, message, mac_to_verify, id_user=None, a=None, init_time=None, ctr=None):
+    def msg_is_authentic(self, message, mac_to_verify, id_user, a=None, init_time=None, ctr=None):
         self.__assert_previous_create_keys_call( id_user )
         key = self._cached_keys[id_user]["kauth"]
         exp_time = self._cached_keys[id_user]["exp_time"]
         
-        if not id_user and not a and not init_time and not exp_time and not ctr:
+        if not a and not init_time and not ctr:
             mac = self._normal_communication_mac( key, message )
         else:
-            assert id_user is not None
             assert a is not None
             assert init_time is not None
             assert ctr is not None
