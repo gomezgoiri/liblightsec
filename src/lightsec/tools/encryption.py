@@ -39,7 +39,7 @@ class AESCTRCipher(AbstractCipher):
         
         from Crypto.Cipher import AES
         from Crypto.Util import Counter
-        ctr = Counter.new(128) # initial_value should change (default=1)
+        ctr = Counter.new(128, initial_value=init_counter) # initial_value should change (default=1)
         #key_len = len(passphrase)
         #if key_len not in (16, 24, 32):
         #    if key_len>32:
@@ -48,7 +48,7 @@ class AESCTRCipher(AbstractCipher):
         #        print "ERROR: the key must be 16, 24 or 32 bits long"
         # it must be a read-only buffer or a string, not a bytearray!
         key =  buffer(passphrase)
-        return AES.new(key, AES.MODE_CTR, counter=ctr )
+        return AES.new(key, AES.MODE_CTR, counter=ctr)
     
     def encrypt(self, message, passphrase = None):
         assert passphrase!=None or self.obj!=None
