@@ -14,20 +14,22 @@ class BaseStationHelper(object):
         self._auth_secrets = {}
         self._enc_secrets = {}
     
-    def install_secret(self, id_user, secret_auth, secret_enc):
-        self._auth_secrets[id_user] = secret_auth
-        self._enc_secrets[id_user] = secret_enc
+    def install_secret(self, id_sensor, secret_auth, secret_enc):
+        self._auth_secrets[id_sensor] = secret_auth
+        self._enc_secrets[id_sensor] = secret_enc
     
-    def create_keys(self, id_user, validity_seconds):
+    def create_keys(self, id_user, id_sensor, validity_seconds):
+        # TODO id_user should be authenticated first using the credentials sent
+        # And then and only then...
         stuff = {}
-        stuff["a"] = random()
+        stuff["a"] = str( random() ) # TODO check how to  KDF (MSS, {a, IDA || init time || exp time_})
         stuff["init_time"] = time()
         stuff["exp_time"] = stuff["init_time"] + validity_seconds * 1000
         
-        kdf = self.kdf_factory.create_function( stuff["a"] )
-        stuff["kenc"] = kdf.derive_key( self._enc_secrets[id_user] )
-        stuff["kauth"] = kdf.derive_key( self._auth_secrets[id_user] )
-        
+        kdf_enc = self.kdf_factory.create_function( self._enc_secrets[id_sensor] )
+        stuff["kenc"] = kdf_enc.derive_key( stuff["a"] ) # TODO use id_user here
+        kdf_auth = self.kdf_factory.create_function( self._auth_secrets[id_sensor] )
+        stuff["kauth"] = kdf_auth.derive_key( stuff["a"] ) # TODO use id_user here
         return stuff
 
 
@@ -47,16 +49,17 @@ class SensorHelper(object):
     def create_keys(self, id_user, a, init_time, exp_time, ctr):
         self._check_expiration_time( exp_time )
         
-        kdf = self.kdf_factory.create_function( a )
-        kenc = kdf.derive_key( self._secret_enc )
-        kauth = kdf.derive_key( self._secret_auth )
+        kdf_enc = self.kdf_factory.create_function( self._secret_enc )
+        kenc = kdf_enc.derive_key( a ) # TODO check how to  KDF (MSS, {a, IDA || init time || exp time_})
+        kdf_auth = self.kdf_factory.create_function( self._secret_auth )
+        kauth = kdf_auth.derive_key( a ) # TODO check how to  KDF (MSS, {a, IDA || init time || exp time_})
         
-        if self.cache_keys:
-            self._cached_keys[id_user] = {}
-            self._cached_keys[id_user]["kenc"] = kenc
-            self._cached_keys[id_user]["kauth"] = kauth
-            self._cached_keys[id_user]["exp_time"] = exp_time
-            self._cached_keys[id_user]["cipher"] = self.cipher_class( kenc, ctr )
+        # TODO if self.cache_keys:
+        self._cached_keys[id_user] = {}
+        self._cached_keys[id_user]["kenc"] = kenc
+        self._cached_keys[id_user]["kauth"] = kauth
+        self._cached_keys[id_user]["exp_time"] = exp_time
+        self._cached_keys[id_user]["cipher"] = self.cipher_class( ctr, kenc )
         
         return kenc, kauth
     
