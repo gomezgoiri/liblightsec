@@ -6,17 +6,20 @@ Created on 26/08/2014
 
 from time import time
 from random import random, randint
+from lightsec.store.secrets import AbstractSecretStore, MemorySecretStore
 
 class BaseStationHelper(object):
     
-    def __init__(self, kdf_factory):
+    def __init__(self, kdf_factory, store=None):
         self.kdf_factory = kdf_factory
-        self._auth_secrets = {}
-        self._enc_secrets = {}
+        if store is None:
+            self._store = MemorySecretStore()
+        else:
+            assert isinstance(store, AbstractSecretStore)
     
     def install_secret(self, id_sensor, secret_auth, secret_enc):
-        self._auth_secrets[id_sensor] = secret_auth
-        self._enc_secrets[id_sensor] = secret_enc
+        self._store.install_auth_secret(id_sensor, secret_auth)
+        self._store.install_enc_secret(id_sensor, secret_enc)
     
     def create_keys(self, id_user, id_sensor, validity_seconds):
         # TODO id_user should be authenticated first using the credentials sent
@@ -27,9 +30,9 @@ class BaseStationHelper(object):
         stuff["init_time"] = time()
         stuff["exp_time"] = stuff["init_time"] + validity_seconds * 1000
         
-        kdf_enc = self.kdf_factory.create_function( self._enc_secrets[id_sensor], stuff["a"] )
+        kdf_enc = self.kdf_factory.create_function( self._store.get_enc_secret(id_sensor), stuff["a"] )
         stuff["kenc"] = kdf_enc.derive_key( "%s%d%d" % (id_user, stuff["init_time"], stuff["exp_time"]) ) # TODO use id_user here
-        kdf_auth = self.kdf_factory.create_function( self._auth_secrets[id_sensor], stuff["a"] )
+        kdf_auth = self.kdf_factory.create_function( self._store.get_auth_secret(id_sensor), stuff["a"] )
         stuff["kauth"] = kdf_auth.derive_key( "%s%d%d" % (id_user, stuff["init_time"], stuff["exp_time"]) ) # TODO use id_user here
         return stuff
 
