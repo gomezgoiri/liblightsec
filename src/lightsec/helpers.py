@@ -7,6 +7,7 @@ Created on 26/08/2014
 from time import time
 from random import random, randint
 from lightsec.store.secrets import AbstractSecretStore, MemorySecretStore
+from lightsec.store.cache import AbstractKeyCache, MemoryKeyCache, UnauthorizedException
 
 class BaseStationHelper(object):
     
@@ -16,6 +17,7 @@ class BaseStationHelper(object):
             self._store = MemorySecretStore()
         else:
             assert isinstance(store, AbstractSecretStore)
+            self._store = store
     
     def install_secrets(self, id_sensor, secret_auth, secret_enc):
         self._store.install_auth_secret(id_sensor, secret_auth)
@@ -39,28 +41,31 @@ class BaseStationHelper(object):
 
 class SensorHelper(object):
     
-    def __init__(self, kdf_factory, hmac_class, cipher_class, secret_store=None):
+    def __init__(self, kdf_factory, hmac_class, cipher_class, secret_store=None, key_cache=None):
         if secret_store is None:
             self._store = MemorySecretStore()
         else:
             assert isinstance(secret_store, AbstractSecretStore)
+            self._store = secret_store
+        
+        if key_cache is None:
+            self._cache = MemoryKeyCache()
+        else:
+            assert isinstance(key_cache, AbstractKeyCache)
+            self._cache = key_cache
         
         self._kdf_factory = kdf_factory
         self._hmac_class = hmac_class
         self._cipher_class = cipher_class
-        self._cached_keys = {}
     
     # It might install one or many (e.g. for group access)
     def install_secrets(self, secret_auth, secret_enc, identifier="default"):
         self._store.install_auth_secret(identifier, secret_auth)
         self._store.install_enc_secret(identifier, secret_enc)
     
-    def _check_expiration_time(self, exp_time):
-        if exp_time < time():
-            raise Exception("The user is not longer authorized to get the data.")
-    
     def create_keys(self, id_user, a, init_time, exp_time, ctr, identifier="default"):
-        self._check_expiration_time( exp_time )
+        if exp_time < time():
+            raise UnauthorizedException("The expiration time received has expired.")
         
         # KDF (MSSenc, {a, IDA || init time || exp time_})
         kdf_enc = self._kdf_factory.create_function( self._store.get_enc_secret(identifier), a )
@@ -69,27 +74,16 @@ class SensorHelper(object):
         kdf_auth = self._kdf_factory.create_function( self._store.get_auth_secret(identifier), a )
         kauth = kdf_auth.derive_key( "%s%d%d" % (id_user, init_time, exp_time) )
         
-        # TODO if self.cache_keys:
-        self._cached_keys[id_user] = {}
-        self._cached_keys[id_user]["kenc"] = kenc
-        self._cached_keys[id_user]["kauth"] = kauth
-        self._cached_keys[id_user]["exp_time"] = exp_time
-        self._cached_keys[id_user]["cipher"] = self._cipher_class( ctr, kenc )
+        # TODO just if we want to cache them (memory vs computation)
+        self._cache.cache( id_user, kauth, kenc, exp_time, self._cipher_class( ctr, kenc ) )
         
         return kenc, kauth
     
-    def check_is_authorized(self, id_user):
-        if id_user not in self._cached_keys:
-            raise Exception("The user is not authorized to get the data.")
-        self._check_expiration_time( self._cached_keys[id_user]["exp_time"] )
-    
     def encrypt(self, id_user, message):
-        self.check_is_authorized( id_user )
-        return self._cached_keys[id_user]["cipher"].encrypt( message )
+        return self._cache.get_cipher(id_user).encrypt( message )
     
     def decrypt(self, id_user, enc_message):
-        self.check_is_authorized( id_user )
-        return self._cached_keys[id_user]["cipher"].decrypt( enc_message )
+        return self._cache.get_cipher(id_user).decrypt( enc_message )
     
     def _first_communication_mac(self, key, message, user_id, a, init_time, exp_time, ctr):
         hmac = self._hmac_class( key )
@@ -107,24 +101,16 @@ class SensorHelper(object):
         return hmac.digest()
     
     def mac(self, message, id_user):
-        self.__assert_previous_create_keys_call( id_user )
-        key = self._cached_keys[id_user]["kauth"]
-        return self._normal_communication_mac( key, message )
-    
-    def __assert_previous_create_keys_call(self, id_user):
-        # the must have been called before!!!
-        # the temporal coupling I was trying to avoid doest not work!
-        assert id_user is not None and \
-                id_user in self._cached_keys and \
-                "kauth" in self._cached_keys[id_user] and \
-                "exp_time" in self._cached_keys[id_user], \
-                "Note that create_keys must be called first."
-        
+        key = self._cache.get_auth_key(id_user)
+        return self._normal_communication_mac( key, message )        
     
     def msg_is_authentic(self, message, mac_to_verify, id_user, a=None, init_time=None, ctr=None):
-        self.__assert_previous_create_keys_call( id_user )
-        key = self._cached_keys[id_user]["kauth"]
-        exp_time = self._cached_keys[id_user]["exp_time"]
+        try:
+            key = self._cache.get_auth_key(id_user)
+            exp_time = self._cache.get_exp_time(id_user)
+        except UnauthorizedException:
+            assert id_user is not None, \
+                    "Note that 'create_keys' must be called first."
         
         if not a and not init_time and not ctr:
             mac = self._normal_communication_mac( key, message )
