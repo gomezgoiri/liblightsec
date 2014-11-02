@@ -11,13 +11,13 @@ from lightsec.store.secrets import AbstractSecretStore, MemorySecretStore
 class BaseStationHelper(object):
     
     def __init__(self, kdf_factory, store=None):
-        self.kdf_factory = kdf_factory
+        self._kdf_factory = kdf_factory
         if store is None:
             self._store = MemorySecretStore()
         else:
             assert isinstance(store, AbstractSecretStore)
     
-    def install_secret(self, id_sensor, secret_auth, secret_enc):
+    def install_secrets(self, id_sensor, secret_auth, secret_enc):
         self._store.install_auth_secret(id_sensor, secret_auth)
         self._store.install_enc_secret(id_sensor, secret_enc)
     
@@ -30,35 +30,43 @@ class BaseStationHelper(object):
         stuff["init_time"] = time()
         stuff["exp_time"] = stuff["init_time"] + validity_seconds * 1000
         
-        kdf_enc = self.kdf_factory.create_function( self._store.get_enc_secret(id_sensor), stuff["a"] )
+        kdf_enc = self._kdf_factory.create_function( self._store.get_enc_secret(id_sensor), stuff["a"] )
         stuff["kenc"] = kdf_enc.derive_key( "%s%d%d" % (id_user, stuff["init_time"], stuff["exp_time"]) ) # TODO use id_user here
-        kdf_auth = self.kdf_factory.create_function( self._store.get_auth_secret(id_sensor), stuff["a"] )
+        kdf_auth = self._kdf_factory.create_function( self._store.get_auth_secret(id_sensor), stuff["a"] )
         stuff["kauth"] = kdf_auth.derive_key( "%s%d%d" % (id_user, stuff["init_time"], stuff["exp_time"]) ) # TODO use id_user here
         return stuff
 
 
 class SensorHelper(object):
     
-    def __init__(self, kdf_factory, secret_auth, secret_enc, hmac_class, cipher_class):
-        self.kdf_factory = kdf_factory
-        self._secret_auth = secret_auth
-        self._secret_enc = secret_enc
+    def __init__(self, kdf_factory, hmac_class, cipher_class, secret_store=None):
+        if secret_store is None:
+            self._store = MemorySecretStore()
+        else:
+            assert isinstance(secret_store, AbstractSecretStore)
+        
+        self._kdf_factory = kdf_factory
         self._hmac_class = hmac_class
-        self.cipher_class = cipher_class
+        self._cipher_class = cipher_class
         self._cached_keys = {}
+    
+    # It might install one or many (e.g. for group access)
+    def install_secrets(self, secret_auth, secret_enc, identifier="default"):
+        self._store.install_auth_secret(identifier, secret_auth)
+        self._store.install_enc_secret(identifier, secret_enc)
     
     def _check_expiration_time(self, exp_time):
         if exp_time < time():
             raise Exception("The user is not longer authorized to get the data.")
     
-    def create_keys(self, id_user, a, init_time, exp_time, ctr):
+    def create_keys(self, id_user, a, init_time, exp_time, ctr, identifier="default"):
         self._check_expiration_time( exp_time )
         
         # KDF (MSSenc, {a, IDA || init time || exp time_})
-        kdf_enc = self.kdf_factory.create_function( self._secret_enc, a )
+        kdf_enc = self._kdf_factory.create_function( self._store.get_enc_secret(identifier), a )
         kenc = kdf_enc.derive_key( "%s%d%d" % (id_user, init_time, exp_time) )
         # KDF (MSSauth, {a, IDA || init time || exp time_})
-        kdf_auth = self.kdf_factory.create_function( self._secret_auth, a )
+        kdf_auth = self._kdf_factory.create_function( self._store.get_auth_secret(identifier), a )
         kauth = kdf_auth.derive_key( "%s%d%d" % (id_user, init_time, exp_time) )
         
         # TODO if self.cache_keys:
@@ -66,7 +74,7 @@ class SensorHelper(object):
         self._cached_keys[id_user]["kenc"] = kenc
         self._cached_keys[id_user]["kauth"] = kauth
         self._cached_keys[id_user]["exp_time"] = exp_time
-        self._cached_keys[id_user]["cipher"] = self.cipher_class( ctr, kenc )
+        self._cached_keys[id_user]["cipher"] = self._cipher_class( ctr, kenc )
         
         return kenc, kauth
     

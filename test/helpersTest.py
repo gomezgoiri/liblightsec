@@ -16,7 +16,7 @@ class HelpersTest(unittest.TestCase):
     def setUp(self):
         self.kdf_factory = KeyDerivationFunctionFactory( Nist800, SHA256Hash(), 256 ) # 512 ) 
         self.base_station = BaseStationHelper( self.kdf_factory )
-        self.base_station.install_secret("sensor1", "authms1", "encms1")
+        self.base_station.install_secrets("sensor1", "authms1", "encms1")
     
     def test_sample_use_case(self):
         """
@@ -24,8 +24,8 @@ class HelpersTest(unittest.TestCase):
         """
         id_user = "user1"
         stuff = self.base_station.create_keys( id_user, "sensor1", 10 )
-        sensor = SensorHelper( self.kdf_factory, "authms1", "encms1",
-                                    SHA256Hash, AESCTRCipher )
+        sensor = SensorHelper( self.kdf_factory, SHA256Hash, AESCTRCipher )
+        sensor.install_secrets("authms1", "encms1")
         
         user = UserHelper( "sensor1", stuff["kenc"], AESCTRCipher, stuff["kauth"],
                            SHA256Hash, id_user, stuff["a"], stuff["init_time"], stuff["exp_time"] )
