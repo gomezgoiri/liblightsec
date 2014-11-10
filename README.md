@@ -7,7 +7,7 @@ Python implementation of the protocol described in Naranjo et al. (2013).
 Protocol
 --------
 
-<img src="http://rawgithub.com/gomezgoiri/lightsec/master/docs/diagram.svg" alt="Protocol diagram" >
+<img src="http://rawgithub.com/lightsec/lightsec/master/docs/diagram.svg" alt="Protocol diagram" >
 
 1. At the time of sensor deployment, the latter receives a master secret _MS<sub>S</sub>_, which is secretly shared by the Base Station _BS_ and the sensor _S_ (see the end of this section for secret channels).
 1. Upon arrival, user _A_ sends her credentials (e.g. an authorization certificate) to BS so high-level access control can be performed, and the list of sensors she wants to communicate with (in the figure we only consider _S_). This step is run only at user arrival.
@@ -53,3 +53,21 @@ Bibliography
 ------------
 
 J. A. M. Naranjo, Pablo Orduña, Aitor Gómez-Goiri, Diego López-de-Ipiña, L. G. Casado. Enabling user access control in energy-constrained wireless smart environments. [Journal of Universal Computer Science](http://www.jucs.org/), [Volume 19](http://www.jucs.org/jucs_19), [number 17](http://www.jucs.org/jucs_19_17), [Pages 2490-2505](http://www.jucs.org/jucs_19_17/enabling_user_access_control), November 2013.
+
+
+Installation
+------------
+
+    pip install git+https://github.com/lightsec/liblightsec.git
+
+
+Requirements
+------------
+
+The required packages are automatically installed in the procedure described above.
+
+However, if you are going to contribute to this project, you might want to install __only__ the project's dependencies in your [virtualenv](http://virtualenv.readthedocs.org).
+
+You can install them using the _requirements.txt_ file in the following way:
+
+        pip install -r requirements.txt
