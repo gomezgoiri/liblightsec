@@ -23,6 +23,10 @@ class AbstractKeyDerivationFunction(object):
     
     @abstractmethod
     def derive_key(self, fixedInput):
+        """
+        @return: The derived key.
+        @type return: bytearray 
+        """
         pass
 
 
@@ -50,4 +54,4 @@ class Nist800(AbstractKeyDerivationFunction):
         self.kdf.set_hmac(digestmod, secret, salt)
     
     def derive_key(self, fixedInput):
-        return str( self.kdf.derive_key(self.outputSizeBits, fixedInput) )
+        return self.kdf.derive_key(self.outputSizeBits, fixedInput)
