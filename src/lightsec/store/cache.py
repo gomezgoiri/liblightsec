@@ -6,14 +6,8 @@ Created on 02/11/2014
 
 from time import time
 from abc import ABCMeta, abstractmethod
+from lightsec.exceptions import UnauthorizedException, NoLongerAuthorizedException
 
-class UnauthorizedException(Exception):
-    def __init__(self):
-        super(Exception, self).__init__("The user is not authorized to get the data.")
-
-class NoLongerAuthorizedException(UnauthorizedException):
-    def __init__(self, message):
-        super(Exception, self).__init__("The user is not longer authorized to get the data.")
 
 class AbstractKeyCache(object):
     
