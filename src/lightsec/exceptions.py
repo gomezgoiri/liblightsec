@@ -1,8 +1,9 @@
-'''
+"""
 Created on 30/11/2014
 
 @author: Aitor Gomez Goiri
-'''
+"""
+
 
 class UnauthorizedException(Exception):
     def __init__(self):
